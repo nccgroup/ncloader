@@ -6,6 +6,7 @@
 
 #define WIN32_LEAN_AND_MEAN
 #include <stdio.h>
+#include <stdlib.h>
 #include <tchar.h>
 #include <Windows.h>
 #include <Psapi.h>
@@ -18,8 +19,10 @@
 #define TIMEOUT_10SEC 10000
 #define QUITE_LARGE_NB_PROCESSES 256
 
-void usage(LPTSTR exename)
+void usage(LPTSTR path)
 {
+  TCHAR exename[_MAX_FNAME+1];
+  _tsplitpath_s(path, (LPTSTR)NULL, 0, (LPTSTR)NULL, 0, (LPTSTR)&exename, _MAX_FNAME+1, (LPTSTR)NULL, 0);
   _tprintf(L"%s [process name | pid] [dll full path]\n", exename);
   return;
 }
