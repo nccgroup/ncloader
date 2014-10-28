@@ -1,5 +1,6 @@
 // ncloader.c: A dll loading utility
 // Nicolas Guigo
+// iSECPartners 2014
 
 #pragma warning( disable : 4711) // disable informational warning. Leaving inlining up to compiler.
 // #pragma warning( disable : 4191) /* uncomment to compile as c++ with /Wall and no warnings */
