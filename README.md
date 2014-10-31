@@ -4,9 +4,9 @@ Ncloader
 #A simple dll injection utility#
 The current design only implements the well-known dll injection technique:
   - VirtualAllocEx (allocates memory for string in remote process)
-  - WriteProcessMemory (writes the "path/do/dll/file" in remotely allocated memory) 
+  - WriteProcessMemory (writes the "path/to/dll/file" in remotely allocated memory)
   - CreateRemoteThread (with start address of LoadLibrary[A/W] and address to "path/do/dll/file" as parameter)
-  
+
 ##Features##
   - Standalone (no third-party library, statically compiled)
   - Simplicity (single c-code file)
