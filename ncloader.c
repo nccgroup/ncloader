@@ -20,12 +20,93 @@ define LOADLIBRARY "LoadLibraryA"
 #define TIMEOUT_10SEC 10000
 #define QUITE_LARGE_NB_PROCESSES 256
 
-void usage(LPTSTR path)
+// Function prototypes
+VOID Usage(LPTSTR);
+BOOL IsPrivilegePresent(HANDLE, LUID);
+BOOL ToggleDebugPrivilege(BOOL);
+BOOL FillProcessesListWithAlloc(PDWORD*, DWORD, PDWORD);
+DWORD FillProcessesList(PDWORD*, DWORD);
+BOOL GetProcessbyNameOrId(LPTSTR, PHANDLE);
+
+// Usage
+VOID Usage(LPTSTR path)
 {
   TCHAR exename[_MAX_FNAME];
   _tsplitpath_s(path, (LPTSTR)NULL, 0, (LPTSTR)NULL, 0, (LPTSTR)&exename, _MAX_FNAME, (LPTSTR)NULL, 0);
   _tprintf(L"%s [process name | pid] [dll full path]\n", exename);
   return;
+}
+
+// Checks if privilege LUID is present in token
+BOOL IsPrivilegePresent(HANDLE hToken, LUID luid)
+{
+  BOOL bResult=FALSE;
+  PTOKEN_PRIVILEGES ptp=NULL;
+  DWORD i, len=0, error;
+
+  // This call cannot succeed
+  bResult = GetTokenInformation(hToken, TokenPrivileges, ptp, len, &len);
+  error = GetLastError();
+  if(error==ERROR_INSUFFICIENT_BUFFER) {
+    ptp = (PTOKEN_PRIVILEGES)HeapAlloc(GetProcessHeap(), 0, len);
+    if(ptp) {
+      GetTokenInformation(hToken, TokenPrivileges, ptp, len, &len);
+      for(i=0; !bResult && i<ptp->PrivilegeCount; i++) {
+        bResult = (ptp->Privileges[i].Luid.LowPart==luid.LowPart)&&(ptp->Privileges[i].Luid.HighPart==luid.HighPart);
+      }
+    }
+    else {
+      _tprintf(L"Failed to allocate memory for privileges list\n");
+    }
+  }
+  else {
+    _tprintf(L"Failed to get token privileges with error %#.8x\n", error);
+  }
+  return bResult;
+}
+
+// Enable or disable debug privilege only if present
+BOOL ToggleDebugPrivilege(BOOL enable)
+{
+  BOOL bResult=FALSE;
+  DWORD error;
+  LUID luid;
+  HANDLE hProcess, hToken;
+  TOKEN_PRIVILEGES tp;
+
+  // Get current process (pseudo-handle, no need to close)
+  hProcess = GetCurrentProcess();
+  // Get current process's token
+  bResult = OpenProcessToken(hProcess, TOKEN_QUERY|TOKEN_ADJUST_PRIVILEGES, &hToken);
+  if(bResult) {
+    bResult = LookupPrivilegeValue(NULL, SE_DEBUG_NAME, &luid);
+    if(bResult) {
+      // Only attempt to enable debug privilege if present in token
+      if(IsPrivilegePresent(hToken, luid)) {
+        // Setup TP struct
+        tp.PrivilegeCount = 1;
+        tp.Privileges[0].Luid = luid;
+        tp.Privileges[0].Attributes = enable ? SE_PRIVILEGE_ENABLED : 0; // zero for disabled, not removed
+        // Adjust our token
+        bResult = AdjustTokenPrivileges(hToken, FALSE, &tp, 0, (PTOKEN_PRIVILEGES)NULL, (PDWORD)NULL);
+        bResult &= (ERROR_SUCCESS==(error=GetLastError()));
+        if((!bResult)) {
+          _tprintf(L"Adjusting token privileges failed with error %#.8x\n", error);
+        }
+      }
+      else {
+        bResult = FALSE;
+      }
+    }
+    else {
+      _tprintf(L"Privilege LUID lookup failed with error %#.8x\n", GetLastError());
+    }
+    CloseHandle(hToken);
+  }
+  else {
+    _tprintf(L"Access to current process' token failed with error %#.8x\n", GetLastError());
+  }
+  return bResult;
 }
 
 // Either returns true (for a retry) or false (success or failure)
@@ -64,7 +145,7 @@ BOOL FillProcessesListWithAlloc(PDWORD *pprocesses, DWORD size, PDWORD pnbProces
     }
   } // if processes
   else {
-     // Allocation failure handling
+    // Allocation failure handling
     _tprintf(L"Allocation failure (requested %#.8x bytes), aborting\n", size);
     // If realloc failed, a free is necessary
     if(realloc) {
@@ -150,7 +231,7 @@ BOOL getProcessbyNameOrId(LPTSTR searchstring, PHANDLE phProcess)
         HeapFree(GetProcessHeap(), 0, processes);
       }
       if(!found) {
-        _tprintf(L"Failed to get handle with sufficient permissions to process %s, verify process existence, DACL and x86/x64 mistmatch\n", searchstring);
+        _tprintf(L"Failed to get handle with sufficient permissions to process %s, possible causes include:\n\t- Non-existent process\n\t- Access check failure (DACL and integrity level)\n\t- Session 0 isolation (most services)\n\t- X86/X64 mistmatch\n", searchstring);
       }
     } // if nbProcesses
   }
@@ -159,7 +240,7 @@ BOOL getProcessbyNameOrId(LPTSTR searchstring, PHANDLE phProcess)
 
 int _tmain(int argc, _TCHAR* argv[])
 {
-  BOOL bResult;
+  BOOL debugPrivEnabled, bResult;
   LPVOID pMem=NULL;
   HANDLE hProcess=NULL, hThread=NULL;
   DWORD threadId, waitResult, threadExitCode;
@@ -168,72 +249,77 @@ int _tmain(int argc, _TCHAR* argv[])
 
   // Check argc
   if(argc==3) {
+    // Attempt to acquire debug privilege if present
+    debugPrivEnabled = ToggleDebugPrivilege(TRUE);
     // Find the FIRST process by that name
     if(getProcessbyNameOrId(argv[1], &hProcess)) {
       // TODO: add optional check for file presence and permissions
       // Get required size, including terminating character
       dllpathlen = _tcsnlen(argv[2], MAX_PATH);
       if(dllpathlen<MAX_PATH) {
-          sizerequired = sizeof(TCHAR)*(dllpathlen+1);
-          // Allocate a page in the target process
-          pMem = VirtualAllocEx(hProcess, 0x0, sizerequired, MEM_RESERVE|MEM_COMMIT, PAGE_READWRITE);
-          if(pMem) {
-              // Copy dll path to target process
-              bResult = WriteProcessMemory(hProcess, pMem, argv[2], sizerequired, &byteswritten);
-              if(bResult) {
-                  // Get address to LoadLibrary function
-                  pLoadLibrary = (LPTHREAD_START_ROUTINE)GetProcAddress(GetModuleHandle(L"kernel32.dll"), LOADLIBRARY);
-                  if(pLoadLibrary) {
-                      // Create remote thread pointing to LoadLibrary[A|W]
-                      hThread = CreateRemoteThread(hProcess, NULL, 0, pLoadLibrary, pMem, 0, &threadId);
-                      if(hThread) {
-                          waitResult = WaitForSingleObject(hThread, TIMEOUT_10SEC);
-                          if(waitResult==WAIT_OBJECT_0) {
-                              bResult = GetExitCodeThread(hThread, &threadExitCode);
-                              if(bResult && threadExitCode) {
-                                  _tprintf(L"Dll %s successfully injected in process %u\n", argv[2], GetProcessId(hProcess));
-                              }
-                              else {
-                                  if(bResult) {
-                                      _tprintf(L"LoadLibrary failed, check for x86/x64 mismatch\n");
-                                  }
-                                  else {
-                                      _tprintf(L"Could not check LoadLibrary return value in remote thread, error %#.8x\n", GetLastError());
-                                  }
-                              }
-                          } // if waitResult==WAIT_OBJECT_0
-                          else {
-                              _tprintf(L"Aborting: %s\n", waitResult==WAIT_TIMEOUT ? L"remote thread has been hung for 10 secs" : L"wait failed");
-                          }
-                          CloseHandle(hThread);
-                      } // if hThread
-                      else {
-                          _tprintf(L"Creating remote thread in process %u failed with error %#.8x\n", GetProcessId(hProcess), GetLastError());
-                      }
-                  } // if pLoadLibrary
-                  else {
-                      _tprintf(L"Failed to get LoadLibrary function address with error %#.8x\n", GetLastError());
+        sizerequired = sizeof(TCHAR)*(dllpathlen+1);
+        // Allocate a page in the target process
+        pMem = VirtualAllocEx(hProcess, 0x0, sizerequired, MEM_RESERVE|MEM_COMMIT, PAGE_READWRITE);
+        if(pMem) {
+          // Copy dll path to target process
+          bResult = WriteProcessMemory(hProcess, pMem, argv[2], sizerequired, &byteswritten);
+          if(bResult) {
+            // Get address to LoadLibrary function
+            pLoadLibrary = (LPTHREAD_START_ROUTINE)GetProcAddress(GetModuleHandle(L"kernel32.dll"), LOADLIBRARY);
+            if(pLoadLibrary) {
+              // Create remote thread pointing to LoadLibrary[A|W]
+              hThread = CreateRemoteThread(hProcess, NULL, 0, pLoadLibrary, pMem, 0, &threadId);
+              if(hThread) {
+                waitResult = WaitForSingleObject(hThread, TIMEOUT_10SEC);
+                if(waitResult==WAIT_OBJECT_0) {
+                  bResult = GetExitCodeThread(hThread, &threadExitCode);
+                  if(bResult && threadExitCode) {
+                    _tprintf(L"Dll %s successfully injected in process %u %s\n", argv[2], GetProcessId(hProcess), debugPrivEnabled ? L"(debug privilege was enabled)": L"");
                   }
-              } // if bResult
+                  else {
+                    if(bResult) {
+                      _tprintf(L"LoadLibrary failed, check for dll file presence and x86/x64 mismatch\n");
+                    }
+                    else {
+                      _tprintf(L"Could not check LoadLibrary return value in remote thread, error %#.8x\n", GetLastError());
+                    }
+                  }
+                } // if waitResult==WAIT_OBJECT_0
+                else {
+                  _tprintf(L"Aborting: %s\n", waitResult==WAIT_TIMEOUT ? L"remote thread has been hung for 10 secs" : L"wait failed");
+                }
+                CloseHandle(hThread);
+              } // if hThread
               else {
-                  _tprintf(L"Writing remote process %u memory failed with error %#.8x\n", GetProcessId(hProcess), GetLastError());
+                _tprintf(L"Creating remote thread in process %u failed with error %#.8x\n", GetProcessId(hProcess), GetLastError());
               }
-              if(!VirtualFreeEx(hProcess, pMem, 0, MEM_RELEASE)) {
-                  _tprintf(L"Failed to free remote process' allocated memory, error %#.8x\n", GetLastError());
-              }
-          } // if pMem
+            } // if pLoadLibrary
+            else {
+              _tprintf(L"Failed to get LoadLibrary function address with error %#.8x\n", GetLastError());
+            }
+          } // if bResult
           else {
-              _tprintf(L"Remote process %u allocation failed with error %#.8x\n", GetProcessId(hProcess), GetLastError());
+            _tprintf(L"Writing remote process %u memory failed with error %#.8x\n", GetProcessId(hProcess), GetLastError());
           }
+          if(!VirtualFreeEx(hProcess, pMem, 0, MEM_RELEASE)) {
+            _tprintf(L"Failed to free remote process' allocated memory, error %#.8x\n", GetLastError());
+          }
+        } // if pMem
+        else {
+          _tprintf(L"Remote process %u allocation failed with error %#.8x\n", GetProcessId(hProcess), GetLastError());
+        }
       } // if pathlen valid
       else {
         _tprintf(L"Dll path too long\n");
       }
       CloseHandle(hProcess);
     } // if getProcessbyNameOrId
+    if(debugPrivEnabled) {
+      ToggleDebugPrivilege(FALSE);
+    }
   } // if argc==3
   else {
-      usage(argv[0]);
+    Usage(argv[0]);
   }
   return 0;
 }
