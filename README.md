@@ -8,10 +8,7 @@ The current design implements the well-known DLL injection technique:
   - CreateRemoteThread (with start address of LoadLibrary[A/W] and address to "path/to/dll/file" as parameter)
 
 ##Features##
-  - From elevated admin prompt, injects in any (non-protected) process regardless of
-    - User
-    - Integrity level
-    - Session
+  - From elevated admin prompt, injects into any (non-protected) process including session 0 processes
   - Standalone (no third-party library, statically compiled)
   - Clean code (compiles with no warnings and /Wall on MSVC)
   - Strict error checking and verbose reporting
