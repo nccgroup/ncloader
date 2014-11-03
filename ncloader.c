@@ -108,25 +108,29 @@ BOOL ImpersonateSystem(HANDLE hSystemToken)
   // Create an impersonation token from the primary system token
   bResult = DuplicateTokenEx(hSystemToken, TOKEN_READ|TOKEN_IMPERSONATE|TOKEN_ADJUST_PRIVILEGES, NULL, SecurityImpersonation, TokenImpersonation, &hSystemImpersonationToken);
   if(bResult) {
-    // Both privileges are required to create process in session 0
-    bResult = TogglePrivilege(hSystemImpersonationToken, SE_ASSIGNPRIMARYTOKEN_NAME, TRUE);
+    // This privilege is needed to adjust token's session id (it should already be enabled)
+    bResult = TogglePrivilege(hSystemImpersonationToken, SE_TCB_NAME, TRUE);
     if(bResult) {
-      bResult = TogglePrivilege(hSystemImpersonationToken, SE_INCREASE_QUOTA_NAME, TRUE);
+      // Both privileges are required to create process in session 0 ("increase quota" should already be enabled)
+      bResult = TogglePrivilege(hSystemImpersonationToken, SE_ASSIGNPRIMARYTOKEN_NAME, TRUE);
       if(bResult) {
-        bResult = ImpersonateLoggedOnUser(hSystemImpersonationToken);
-        if(!bResult) {
-          _tprintf(L"Failed to impersonate system with error %#.8x\n", GetLastError());
+        bResult = TogglePrivilege(hSystemImpersonationToken, SE_INCREASE_QUOTA_NAME, TRUE);
+        if(bResult) {
+          bResult = ImpersonateLoggedOnUser(hSystemImpersonationToken);
+          if(!bResult) {
+            _tprintf(L"Failed to impersonate system with error %#.8x\n", GetLastError());
+          }
+        }
+        else {
+          _tprintf(L"Failed to enable increase quota privilege with error %#.8x\n", GetLastError());
         }
       }
       else {
-        _tprintf(L"Failed to enable increase quota privilege with error %#.8x\n", GetLastError());
+        _tprintf(L"Failed to enable assign primary token privilege with error %#.8x\n", GetLastError());
       }
     }
-    else {
-      _tprintf(L"Failed to enable assign primary token privilege with error %#.8x\n", GetLastError());
-    }
     CloseHandle(hSystemImpersonationToken);
-  }
+  } // if duplicatetokenex
   else {
     _tprintf(L"Failed to create impersonation system token with error %#.8x\n", GetLastError());
   }
