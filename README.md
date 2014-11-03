@@ -5,7 +5,7 @@ Ncloader
 The current design implements the well-known DLL injection technique:
   - VirtualAllocEx (allocates memory for string in remote process)
   - WriteProcessMemory (writes the "path/to/dll/file" in remotely allocated memory)
-  - CreateRemoteThread (with start address of LoadLibrary[A/W] and address to "path/do/dll/file" as parameter)
+  - CreateRemoteThread (with start address of LoadLibrary[A/W] and address to "path/to/dll/file" as parameter)
 
 ##Features##
   - From elevated admin prompt, injects in any (non-protected) process regardless of
@@ -13,7 +13,6 @@ The current design implements the well-known DLL injection technique:
     - Integrity level
     - Session
   - Standalone (no third-party library, statically compiled)
-  - Simplicity (single c-code file)
   - Clean code (compiles with no warnings and /Wall on MSVC)
   - Strict error checking and verbose reporting
   - No undocumented NT api

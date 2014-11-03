@@ -37,6 +37,7 @@ DWORD CreateProcessInSession0(LPTSTR);
 BOOL CraftSession0Token(HANDLE, PHANDLE);
 BOOL ImpersonateSystem(HANDLE);
 DWORD GetProcessSession(HANDLE);
+BOOL GetSystemToken(PHANDLE);
 
 // Usage
 VOID Usage(LPTSTR path)
