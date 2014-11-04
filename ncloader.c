@@ -185,8 +185,6 @@ DWORD CreateProcessInSession0(LPTSTR lpCommandLine)
         }
         CloseHandle(hSystemSession0PrimaryToken);
       }
-      else{
-      }
       // End impersonation
       RevertToSelf();
     }
@@ -212,9 +210,15 @@ BOOL IsPrivilegePresent(HANDLE hToken, LUID luid)
   if(error==ERROR_INSUFFICIENT_BUFFER) {
     ptp = (PTOKEN_PRIVILEGES)HeapAlloc(GetProcessHeap(), 0, len);
     if(ptp) {
-      GetTokenInformation(hToken, TokenPrivileges, ptp, len, &len);
-      for(i=0; !bResult && i<ptp->PrivilegeCount; i++) {
-        bResult = (ptp->Privileges[i].Luid.LowPart==luid.LowPart)&&(ptp->Privileges[i].Luid.HighPart==luid.HighPart);
+      bResult = GetTokenInformation(hToken, TokenPrivileges, ptp, len, &len);
+      if(bResult) {
+        bResult=FALSE;
+        for(i=0; !bResult && i<ptp->PrivilegeCount; i++) {
+          bResult = (ptp->Privileges[i].Luid.LowPart==luid.LowPart)&&(ptp->Privileges[i].Luid.HighPart==luid.HighPart);
+        }
+      } // if gettokeninformation
+      else {
+        _tprintf(L"Failed to get token privileges with error %#.8x\n", error);
       }
       HeapFree(GetProcessHeap(), 0, ptp);
     }
@@ -223,7 +227,7 @@ BOOL IsPrivilegePresent(HANDLE hToken, LUID luid)
     }
   }
   else {
-    _tprintf(L"Failed to get token privileges with error %#.8x\n", error);
+    _tprintf(L"Failed token privileges list size with error %#.8x\n", error);
   }
   return bResult;
 }
@@ -449,8 +453,12 @@ INT _tmain(INT argc, _TCHAR* argv[])
       }
       if(needSession0) {
         // The tailing '1' will skip to dll injection logic directly
-        _sntprintf_s(lpCommandLine, _countof(lpCommandLine),  _TRUNCATE, L"%s %s %s 1", argv[0], argv[1], argv[2], L"1");
-        dwResult = CreateProcessInSession0(lpCommandLine);
+        if(-1!=_sntprintf_s(lpCommandLine, _countof(lpCommandLine),  _TRUNCATE, L"%s %s %s 1", argv[0], argv[1], argv[2], L"1")) {
+          dwResult = CreateProcessInSession0(lpCommandLine);
+        }
+        else {
+          _tprintf(L"Command line longuer than MAX_PATH, aborting session 0 injection\n");
+        }
       } 
       else {
         // Only do regular injection
