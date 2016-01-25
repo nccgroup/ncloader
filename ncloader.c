@@ -15,7 +15,7 @@
 #ifdef UNICODE
 #define LOADLIBRARY "LoadLibraryW"
 #else
-define LOADLIBRARY "LoadLibraryA"
+#define LOADLIBRARY "LoadLibraryA"
 #endif
 #define TIMEOUT_10SEC 10000
 #define QUITE_LARGE_NB_PROCESSES 256
