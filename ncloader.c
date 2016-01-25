@@ -15,11 +15,11 @@
 #ifdef UNICODE
 #define LOADLIBRARY "LoadLibraryW"
 #else
-define LOADLIBRARY "LoadLibraryA"
+#define LOADLIBRARY "LoadLibraryA"
 #endif
 #define TIMEOUT_10SEC 10000
 #define QUITE_LARGE_NB_PROCESSES 256
-#define SOME_SYSTEM_PROCESS_IN_CURRENT_SESSION L"winlogon.exe"
+#define SOME_SYSTEM_PROCESS_IN_CURRENT_SESSION _T("winlogon.exe")
 #define INJECTION_RIGHTS (PROCESS_CREATE_THREAD|PROCESS_QUERY_INFORMATION|PROCESS_VM_OPERATION|PROCESS_VM_READ|PROCESS_VM_WRITE)
 #define IDENTIFICATION_RIGHTS (PROCESS_QUERY_INFORMATION|PROCESS_VM_OPERATION|PROCESS_VM_READ)
 
@@ -45,7 +45,7 @@ VOID Usage(LPTSTR path)
   TCHAR exename[_MAX_FNAME];
 
   _tsplitpath_s(path, (LPTSTR)NULL, 0, (LPTSTR)NULL, 0, (LPTSTR)&exename, _MAX_FNAME, (LPTSTR)NULL, 0);
-  _tprintf(L"%s [process name | pid] [dll full path] [1]\nnote: the optional trailing '1' disables elevation attempt", exename);
+  _tprintf(_T("%s [process name | pid] [dll full path] [1]\nnote: the optional trailing '1' disables elevation attempt"), exename);
   return;
 }
 
@@ -63,12 +63,12 @@ BOOL GetSystemToken(PHANDLE phSystemToken)
         *phSystemToken = hWinlogonToken;
       }
       else {
-        _tprintf(L"Failed to get winlogon token handle with error %#.8x\n", GetLastError());
+        _tprintf(_T("Failed to get winlogon token handle with error %#.8x\n"), GetLastError());
       }
       CloseHandle(hWinlogonProcess);
     }
     else {
-      _tprintf(L"Failed to get handle to winlogon with error %#.8x\n", GetLastError());
+      _tprintf(_T("Failed to get handle to winlogon with error %#.8x\n"), GetLastError());
     }
     return bResult;
 }
@@ -91,11 +91,11 @@ BOOL CraftSession0Token(HANDLE hSystemToken, PHANDLE phSession0Token)
     }
     else {
       CloseHandle(hSession0Token);
-      _tprintf(L"Failed to adjust session id in process token with error %#.8x\n", GetLastError());
+      _tprintf(_T("Failed to adjust session id in process token with error %#.8x\n"), GetLastError());
     }
   }
   else {
-    _tprintf(L"Failed to duplicate token with error %#.8x\n", GetLastError());
+    _tprintf(_T("Failed to duplicate token with error %#.8x\n"), GetLastError());
   }
   return bResult;
 }
@@ -119,21 +119,21 @@ BOOL ImpersonateSystem(HANDLE hSystemToken)
         if(bResult) {
           bResult = ImpersonateLoggedOnUser(hSystemImpersonationToken);
           if(!bResult) {
-            _tprintf(L"Failed to impersonate system with error %#.8x\n", GetLastError());
+            _tprintf(_T("Failed to impersonate system with error %#.8x\n"), GetLastError());
           }
         }
         else {
-          _tprintf(L"Failed to enable increase quota privilege with error %#.8x\n", GetLastError());
+          _tprintf(_T("Failed to enable increase quota privilege with error %#.8x\n"), GetLastError());
         }
       }
       else {
-        _tprintf(L"Failed to enable assign primary token privilege with error %#.8x\n", GetLastError());
+        _tprintf(_T("Failed to enable assign primary token privilege with error %#.8x\n"), GetLastError());
       }
     }
     CloseHandle(hSystemImpersonationToken);
   } // if duplicatetokenex
   else {
-    _tprintf(L"Failed to create impersonation system token with error %#.8x\n", GetLastError());
+    _tprintf(_T("Failed to create impersonation system token with error %#.8x\n"), GetLastError());
   }
   return bResult;
 }
@@ -165,23 +165,23 @@ DWORD CreateProcessInSession0(LPTSTR lpCommandLine)
             bResult = GetExitCodeProcess(pi.hProcess, &dwResult);
             if(!(bResult&&dwResult==ERROR_SUCCESS)) {
               if(bResult) {
-                _tprintf(L"Session 0 DLL injection failed with error %#.8x\n", dwResult);
+                _tprintf(_T("Session 0 DLL injection failed with error %#.8x\n"), dwResult);
               }
               else {
                 dwResult = GetLastError();
-                _tprintf(L"Could not get session 0 process return code, error %#.8x\n", dwResult);
+                _tprintf(_T("Could not get session 0 process return code, error %#.8x\n"), dwResult);
               }
             }
           }
           else {
-            _tprintf(L"Aborting: %s\n", waitResult==WAIT_TIMEOUT ? L"remote thread has been hung for 10 secs" : L"wait failed");
+            _tprintf(_T("Aborting: %s\n", waitResult==WAIT_TIMEOUT ? L"remote thread has been hung for 10 secs" : L"wait failed"));
           }
           CloseHandle(pi.hProcess);
           CloseHandle(pi.hThread);
         } // if createprocessasuser
         else {
           dwResult = GetLastError();
-          _tprintf(L"Process creation in session 0 failed with error %#.8x\n", dwResult);
+          _tprintf(_T("Process creation in session 0 failed with error %#.8x\n"), dwResult);
         }
         CloseHandle(hSystemSession0PrimaryToken);
       }
@@ -190,7 +190,7 @@ DWORD CreateProcessInSession0(LPTSTR lpCommandLine)
     }
     else {
       dwResult = GetLastError();
-      _tprintf(L"Failed to impersonate system with error %#.8x\n", dwResult);
+      _tprintf(_T("Failed to impersonate system with error %#.8x\n"), dwResult);
     }
     CloseHandle(hSystemToken);
   } // if getsystemtoken
@@ -218,16 +218,16 @@ BOOL IsPrivilegePresent(HANDLE hToken, LUID luid)
         }
       } // if gettokeninformation
       else {
-        _tprintf(L"Failed to get token privileges with error %#.8x\n", error);
+        _tprintf(_T("Failed to get token privileges with error %#.8x\n"), error);
       }
       HeapFree(GetProcessHeap(), 0, ptp);
     }
     else {
-      _tprintf(L"Failed to allocate memory for privileges list\n");
+      _tprintf(_T("Failed to allocate memory for privileges list\n"));
     }
   }
   else {
-    _tprintf(L"Failed token privileges list size with error %#.8x\n", error);
+    _tprintf(_T("Failed token privileges list size with error %#.8x\n"), error);
   }
   return bResult;
 }
@@ -252,7 +252,7 @@ BOOL TogglePrivilege(HANDLE hToken, LPTSTR priv, BOOL enable)
       bResult = AdjustTokenPrivileges(hToken, FALSE, &tp, 0, (PTOKEN_PRIVILEGES)NULL, (PDWORD)NULL);
       bResult &= (ERROR_SUCCESS==(error=GetLastError()));
       if((!bResult)) {
-        _tprintf(L"Adjusting token privileges failed with error %#.8x\n", error);
+        _tprintf(_T("Adjusting token privileges failed with error %#.8x\n"), error);
       }
     }
     else {
@@ -260,7 +260,7 @@ BOOL TogglePrivilege(HANDLE hToken, LPTSTR priv, BOOL enable)
     }
   }
   else {
-    _tprintf(L"Privilege LUID lookup failed with error %#.8x\n", GetLastError());
+    _tprintf(_T("Privilege LUID lookup failed with error %#.8x\n"), GetLastError());
   }
   return bResult;
 }
@@ -280,7 +280,7 @@ BOOL ToggleDebugPrivilege(BOOL enable)
     CloseHandle(hToken);
   }
   else {
-    _tprintf(L"Access to current process' token failed with error %#.8x\n", GetLastError());
+    _tprintf(_T("Access to current process' token failed with error %#.8x\n"), GetLastError());
   }
   return bResult;
 }
@@ -317,12 +317,12 @@ BOOL FillProcessesListWithAlloc(PDWORD *pprocesses, DWORD size, PDWORD pnbProces
     }
     else {
       HeapFree(GetProcessHeap(), 0, processes);
-      _tprintf(L"EnumProcesses() failure, error %#.8x\n", GetLastError());
+      _tprintf(_T("EnumProcesses() failure, error %#.8x\n"), GetLastError());
     }
   } // if processes
   else {
     // Allocation failure handling
-    _tprintf(L"Allocation failure (requested %#.8x bytes), aborting\n", size);
+    _tprintf(_T("Allocation failure (requested %#.8x bytes), aborting\n"), size);
     // If realloc failed, a free is necessary
     if(realloc) {
       HeapFree(GetProcessHeap(), 0, *pprocesses);
@@ -357,7 +357,7 @@ DWORD FillProcessesList(PDWORD *pprocesses, DWORD bufsize)
     }
   } // if enumProcesses
   else {
-    _tprintf(L"EnumProcesses failed with error %#.8x\n", GetLastError());
+    _tprintf(_T("EnumProcesses failed with error %#.8x\n"), GetLastError());
   }
   return nb_processes;
 }
@@ -424,7 +424,7 @@ INT _tmain(INT argc, _TCHAR* argv[])
   TCHAR lpCommandLine[MAX_PATH]; // Not the absolute max (32k) but should be enough
 
   // Check for valid usage
-  if(argc==3 || (argc==4&&!_tcscmp(argv[3], L"1"))) {
+  if(argc==3 || (argc==4&&!_tcscmp(argv[3], _T("1")))) {
     // First things first
     if(argc==3) {
       // Attempt to acquire debug privilege if present
@@ -435,7 +435,7 @@ INT _tmain(INT argc, _TCHAR* argv[])
     if(bResult) {
       // Identify process session
       targetProcessSession = GetProcessSession(hProcess);
-      // _tprintf(L"Process %u found in session %u\n", GetProcessId(hProcess), targetProcessSession);
+      // _tprintf(_T("Process %u found in session %u\n"), GetProcessId(hProcess), targetProcessSession);
       CloseHandle(hProcess);
       // If we have found the target process and we are the instance running in session 0
       // If this is the interactive session instance
@@ -447,17 +447,17 @@ INT _tmain(INT argc, _TCHAR* argv[])
             needSession0 = TRUE;
           }
           else {
-            _tprintf(L"Unable to inject into session 0 process without debug privilege...\n");
+            _tprintf(_T("Unable to inject into session 0 process without debug privilege...\n"));
           }
         }
       }
       if(needSession0) {
         // The tailing '1' will skip to dll injection logic directly
-        if(-1!=_sntprintf_s(lpCommandLine, _countof(lpCommandLine),  _TRUNCATE, L"%s %s %s 1", argv[0], argv[1], argv[2], L"1")) {
+        if(-1!=_sntprintf_s(lpCommandLine, _countof(lpCommandLine),  _TRUNCATE, _T("%s %s %s 1", argv[0], argv[1], argv[2], L"1"))) {
           dwResult = CreateProcessInSession0(lpCommandLine);
         }
         else {
-          _tprintf(L"Command line longuer than MAX_PATH, aborting session 0 injection\n");
+          _tprintf(_T("Command line longuer than MAX_PATH, aborting session 0 injection\n"));
         }
       } 
       else {
@@ -466,7 +466,7 @@ INT _tmain(INT argc, _TCHAR* argv[])
       }
     }
     else {
-      _tprintf(L"Process %s not found - or failed to access with minimum rights, aborting. Perhaps try as elevated admin (which grants debug privilege)?\n", argv[1]);
+      _tprintf(_T("Process %s not found - or failed to access with minimum rights, aborting. Perhaps try as elevated admin (which grants debug privilege)?\n"), argv[1]);
     }
     // Disable debug privilege
     if(debugPrivEnabled) {
@@ -474,7 +474,7 @@ INT _tmain(INT argc, _TCHAR* argv[])
     }
     // Display success message
     if(dwResult==ERROR_SUCCESS) {
-      _tprintf(L"Dll %s successfully injected in session %u process %s %s\n", argv[2], targetProcessSession, argv[1], debugPrivEnabled ? L"(debug privilege was enabled)" : L"");
+      _tprintf(_T("Dll %s successfully injected in session %u process %s %s\n", argv[2], targetProcessSession, argv[1], debugPrivEnabled ? L"(debug privilege was enabled)" : L""));
     }
   }
   else {
@@ -489,7 +489,7 @@ DWORD GetProcessSession(HANDLE hProcess)
   DWORD sessionId=(DWORD)(-1);
 
   if(!ProcessIdToSessionId(GetProcessId(hProcess), &sessionId)) {
-    _tprintf(L"Getting target process session id failed with error %#.8x\n", GetLastError());
+    _tprintf(_T("Getting target process session id failed with error %#.8x\n"), GetLastError());
   }
   return sessionId;
 }
@@ -519,7 +519,7 @@ DWORD InjectDll(LPTSTR process, LPTSTR dll)
         bResult = WriteProcessMemory(hProcess, pMem, dll, sizerequired, &byteswritten);
         if(bResult) {
           // Get address to LoadLibrary function
-          pLoadLibrary = (LPTHREAD_START_ROUTINE)GetProcAddress(GetModuleHandle(L"kernel32.dll"), LOADLIBRARY);
+          pLoadLibrary = (LPTHREAD_START_ROUTINE)GetProcAddress(GetModuleHandle(_T("kernel32.dll")), LOADLIBRARY);
           if(pLoadLibrary) {
             // Create remote thread pointing to LoadLibrary[A|W]
             hThread = CreateRemoteThread(hProcess, NULL, 0, pLoadLibrary, pMem, 0, &threadId);
@@ -533,47 +533,47 @@ DWORD InjectDll(LPTSTR process, LPTSTR dll)
                 else {
                   if(bResult) {
                     dwResult = ERROR_UNIDENTIFIED_ERROR;
-                    _tprintf(L"LoadLibrary failed, check for dll file presence and x86/x64 mismatch\n");
+                    _tprintf(_T("LoadLibrary failed, check for dll file presence and x86/x64 mismatch\n"));
                   }
                   else {
                     dwResult = GetLastError();
-                    _tprintf(L"Could not check LoadLibrary return value in remote thread, error %#.8x\n", dwResult);
+                    _tprintf(_T("Could not check LoadLibrary return value in remote thread, error %#.8x\n"), dwResult);
                   }
                 }
               } // if waitResult==WAIT_OBJECT_0
               else {
                 dwResult = waitResult;
-                _tprintf(L"Aborting: %s\n", waitResult==WAIT_TIMEOUT ? L"remote thread has been hung for 10 secs" : L"wait failed");
+                _tprintf(_T("Aborting: %s\n", waitResult==WAIT_TIMEOUT ? L"remote thread has been hung for 10 secs" : L"wait failed"));
               }
               CloseHandle(hThread);
             } // if hThread
             else {
               dwResult = GetLastError();
-              _tprintf(L"Creating remote thread in process %u failed with error %#.8x\n", GetProcessId(hProcess), dwResult);
+              _tprintf(_T("Creating remote thread in process %u failed with error %#.8x\n"), GetProcessId(hProcess), dwResult);
             }
           } // if pLoadLibrary
           else {
             dwResult = GetLastError();
-            _tprintf(L"Failed to get LoadLibrary function address with error %#.8x\n", dwResult);
+            _tprintf(_T("Failed to get LoadLibrary function address with error %#.8x\n"), dwResult);
           }
         } // if bResult
         else {
           dwResult = GetLastError();
-          _tprintf(L"Writing remote process %u memory failed with error %#.8x\n", GetProcessId(hProcess), dwResult);
+          _tprintf(_T("Writing remote process %u memory failed with error %#.8x\n"), GetProcessId(hProcess), dwResult);
         }
         if(!VirtualFreeEx(hProcess, pMem, 0, MEM_RELEASE)) {
           dwResult = GetLastError();
-          _tprintf(L"Failed to free remote process' allocated memory, error %#.8x\n", dwResult);
+          _tprintf(_T("Failed to free remote process' allocated memory, error %#.8x\n"), dwResult);
         }
       } // if pMem
       else {
         dwResult = GetLastError();
-        _tprintf(L"Remote process %u allocation failed with error %#.8x\n", GetProcessId(hProcess), dwResult);
+        _tprintf(_T("Remote process %u allocation failed with error %#.8x\n"), GetProcessId(hProcess), dwResult);
       }
     } // if pathlen valid
     else {
       dwResult = ERROR_BUFFER_OVERFLOW;
-      _tprintf(L"Dll path too long\n");
+      _tprintf(_T("Dll path too long\n"));
     }
     CloseHandle(hProcess);
   } // if getProcessbyNameOrId
