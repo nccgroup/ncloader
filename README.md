@@ -26,11 +26,11 @@ note: the optional trailing '1' disables elevation attempt
 ###Examples###
 By process name from regular prompt (debug privilege not present in restricted token)
 ```
-ncloader.exe 1234 c:\path\to\library.dll
-Dll c:\path\to\library.dll successfully injected in session 1 process 1234
+ncloader.exe some_service.exe c:\path\to\library.dll
+Dll c:\path\to\library.dll successfully injected in session 0 process some_service.exe (debug privilege was enabled)
 ```
 By PID from elevated prompt (token has debug privilege present but disabled)
 ```
-ncloader.exe some_service.exe c:\path\to\library.dll
-Dll c:\path\to\library.dll successfully injected in session 0 process some_service.exe (debug privilege was enabled)
+ncloader.exe 1234 c:\path\to\library.dll
+Dll c:\path\to\library.dll successfully injected in session 1 process 1234
 ```
